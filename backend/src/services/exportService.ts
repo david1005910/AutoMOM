@@ -1,3 +1,5 @@
+import { writeFileSync, mkdirSync, existsSync } from 'fs';
+import path from 'path';
 import { Meeting } from '@prisma/client';
 import { MinutesJSON } from '../types/meeting';
 import { StorageService } from './storageService';
@@ -36,11 +38,15 @@ export class ExportService {
     }
 
     const fileKey = `exports/${meeting.userId}/${meeting.id}/${Date.now()}.${ext}`;
-    // 실제 구현에서는 S3에 업로드 후 Presigned URL 반환
-    // 여기서는 Markdown은 직접 반환, PDF/DOCX는 S3 업로드 시뮬레이션
-    logger.info(`내보내기 완료: ${fileKey}`);
 
-    // 임시: 실제 S3 업로드 대신 presigned URL 패턴 반환
+    // 로컬 모드: 파일을 직접 tmp/uploads에 저장
+    const localPath = this.storage.getLocalPath(fileKey);
+    const dir = path.dirname(localPath);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const fileBuffer: Buffer = Buffer.isBuffer(content) ? content : Buffer.from(content as string, 'utf-8');
+    writeFileSync(localPath, fileBuffer);
+
+    logger.info(`내보내기 완료: ${fileKey}`);
     const downloadUrl = await this.storage.generateDownloadUrl(fileKey).catch(() => `/api/exports/${fileKey}`);
     return { downloadUrl };
   }

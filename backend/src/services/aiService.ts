@@ -87,14 +87,16 @@ export class AiService {
       try {
         const response = await this.client.messages.create({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
+          max_tokens: 8192, // 4096 → 8192: 긴 회의록 잘림 방지
           temperature: 0,
           system: MINUTES_SYSTEM_PROMPT,
           messages: [{ role: 'user', content: userMessage }],
         });
 
         const text = response.content[0].type === 'text' ? response.content[0].text : '';
-        const parsed = JSON.parse(text.trim());
+        // 코드블록·앞뒤 텍스트 포함 응답도 안정적으로 파싱
+        const jsonText = this.extractJson(text);
+        const parsed = JSON.parse(jsonText);
         return MinutesSchema.parse(parsed);
       } catch (error) {
         logger.warn(`회의록 생성 시도 ${attempt + 1} 실패:`, error);
@@ -132,7 +134,7 @@ export class AiService {
       });
 
       const text = response.content[0].type === 'text' ? response.content[0].text : '{}';
-      return JSON.parse(text.trim());
+      return JSON.parse(this.extractJson(text));
     } catch {
       return { summary: `구간 ${index + 1} 처리 실패` };
     }
@@ -148,6 +150,19 @@ export class AiService {
 
 전사 텍스트:
 ${transcript}`.trim();
+  }
+
+  // ```json ... ``` 코드블록 또는 앞뒤 텍스트가 포함된 응답에서 JSON 추출
+  private extractJson(text: string): string {
+    // 코드블록 형태: ```json { ... } ```
+    const codeBlock = text.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
+    if (codeBlock?.[1]) return codeBlock[1].trim();
+
+    // 순수 JSON 객체 추출 (앞뒤 설명 텍스트 제거)
+    const jsonMatch = text.match(/\{[\s\S]+\}/);
+    if (jsonMatch) return jsonMatch[0];
+
+    return text.trim();
   }
 
   private splitIntoChunks(text: string, chunkSize: number): string[] {

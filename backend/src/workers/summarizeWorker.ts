@@ -23,10 +23,24 @@ summarizeQueue.process(async (job) => {
     emitProgress(meetingId, 'summarizing', 10);
     logger.info(`[${meetingId}] AI 회의록 생성 시작`);
 
-    const minutes = await aiService.generateMinutes(transcript, {
-      ...meetingMeta,
-      metAt: meetingMeta.metAt ? new Date(meetingMeta.metAt).toISOString() : undefined,
-    });
+    // AI 생성 중 진행률 시뮬레이션 (10% → 85%, 4초마다 3% 증가)
+    let fakeProgress = 10;
+    const progressTimer = setInterval(() => {
+      if (fakeProgress < 85) {
+        fakeProgress += 3;
+        emitProgress(meetingId, 'summarizing', fakeProgress);
+      }
+    }, 4000);
+
+    let minutes;
+    try {
+      minutes = await aiService.generateMinutes(transcript, {
+        ...meetingMeta,
+        metAt: meetingMeta.metAt ? new Date(meetingMeta.metAt).toISOString() : undefined,
+      });
+    } finally {
+      clearInterval(progressTimer);
+    }
 
     emitProgress(meetingId, 'summarizing', 90);
 

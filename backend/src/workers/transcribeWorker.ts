@@ -31,9 +31,12 @@ transcribeQueue.process(async (job) => {
     await storageService.downloadFile(fileKey, tmpFile.path);
     logger.info(`[${meetingId}] S3 다운로드 완료`);
 
-    // 3. STT 처리
+    // 3. STT 처리 (청크별 진행률 업데이트: 30%→80%)
     emitProgress(meetingId, 'transcribing', 30);
-    const transcript = await sttService.transcribe(tmpFile.path);
+    const transcript = await sttService.transcribe(tmpFile.path, (done, total) => {
+      const pct = 30 + Math.round((done / total) * 50);
+      emitProgress(meetingId, 'transcribing', pct);
+    });
     logger.info(`[${meetingId}] STT 완료 — ${transcript.length}자`);
 
     // 4. DB 저장
